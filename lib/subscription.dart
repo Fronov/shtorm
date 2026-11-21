@@ -50,15 +50,21 @@ List<ServerEntry> parseSubscriptionBody(String body) {
   return result;
 }
 
-/// Скачивает подписку по ссылке. Панель отдаёт конфиг, если запрос
-/// не похож на браузерный, поэтому подставляем User-Agent приложения.
+/// Скачивает подписку по ссылке. Панель отдаёт конфиг только известным
+/// приложениям (по User-Agent), поэтому пробуем несколько вариантов
+/// и пропускаем заглушку «App not supported».
 Future<List<ServerEntry>> fetchSubscription(String url) async {
   final uri = Uri.tryParse(url.trim());
   if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
     throw Exception('Это не похоже на ссылку подписки (нужна ссылка https://...)');
   }
   Object? lastError;
-  for (final ua in const ['v2rayNG/1.8.29', 'Happ/1.0', 'SHTORM/1.0']) {
+  for (final ua in const [
+    'Happ/2.3.0',
+    'INCY/1.0',
+    'v2rayNG/1.8.29',
+    'SHTORM/1.0',
+  ]) {
     try {
       final r = await http
           .get(uri, headers: {'User-Agent': ua})
@@ -67,9 +73,11 @@ Future<List<ServerEntry>> fetchSubscription(String url) async {
         lastError = 'Ответ сервера: ${r.statusCode}';
         continue;
       }
-      final list = parseSubscriptionBody(r.body);
+      final list = parseSubscriptionBody(r.body)
+          .where((s) => !s.name.toLowerCase().contains('not supported'))
+          .toList();
       if (list.isNotEmpty) return list;
-      lastError = 'В подписке не нашлось серверов';
+      lastError = 'Панель не отдала серверы (приложение не распознано)';
     } catch (e) {
       lastError = e;
     }
