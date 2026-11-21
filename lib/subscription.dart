@@ -50,37 +50,36 @@ List<ServerEntry> parseSubscriptionBody(String body) {
   return result;
 }
 
-/// Скачивает подписку по ссылке. Панель отдаёт конфиг только известным
-/// приложениям (по User-Agent), поэтому пробуем несколько вариантов
-/// и пропускаем заглушку «App not supported».
+/// Скачивает подписку по ссылке. Приложение представляется как SHTORM.
+/// Если панель не разрешает это приложение, она отдаёт заглушку
+/// «App not supported», и мы показываем понятную ошибку.
 Future<List<ServerEntry>> fetchSubscription(String url) async {
   final uri = Uri.tryParse(url.trim());
   if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
     throw Exception('Это не похоже на ссылку подписки (нужна ссылка https://...)');
   }
-  Object? lastError;
-  for (final ua in const [
-    'Happ/2.3.0',
-    'INCY/1.0',
-    'v2rayNG/1.8.29',
-    'SHTORM/1.0',
-  ]) {
-    try {
-      final r = await http
-          .get(uri, headers: {'User-Agent': ua})
-          .timeout(const Duration(seconds: 20));
-      if (r.statusCode != 200) {
-        lastError = 'Ответ сервера: ${r.statusCode}';
-        continue;
-      }
-      final list = parseSubscriptionBody(r.body)
-          .where((s) => !s.name.toLowerCase().contains('not supported'))
-          .toList();
-      if (list.isNotEmpty) return list;
-      lastError = 'Панель не отдала серверы (приложение не распознано)';
-    } catch (e) {
-      lastError = e;
+  try {
+    final r = await http
+        .get(uri, headers: {'User-Agent': 'SHTORM/1.0'})
+        .timeout(const Duration(seconds: 20));
+    if (r.statusCode != 200) {
+      throw Exception('Ответ сервера: ${r.statusCode}');
     }
+    final all = parseSubscriptionBody(r.body);
+    final list = all
+        .where((s) => !s.name.toLowerCase().contains('not supported'))
+        .toList();
+    if (list.isEmpty && all.isNotEmpty) {
+      throw Exception(
+          'Панель не разрешает это приложение (App not supported). '
+          'Нужно добавить SHTORM/1.0 в разрешённые клиенты панели.');
+    }
+    if (list.isEmpty) {
+      throw Exception('В подписке не нашлось серверов');
+    }
+    return list;
+  } on Exception catch (e) {
+    if (e.toString().startsWith('Exception: ')) rethrow;
+    throw Exception('Не удалось загрузить подписку: $e');
   }
-  throw Exception('Не удалось загрузить подписку: $lastError');
 }
