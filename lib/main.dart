@@ -121,7 +121,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _message = 'Загружено серверов: ${list.length}';
       });
     } catch (e) {
-      setState(() => _message = e.toString().replaceFirst('Exception: ', ''));
+      final p = await SharedPreferences.getInstance();
+      await p.remove('servers');
+      setState(() {
+        _servers = [];
+        _selected = 0;
+        _message = e.toString().replaceFirst('Exception: ', '');
+      });
     } finally {
       setState(() => _loading = false);
     }
@@ -241,72 +247,3 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   const Text('Сервер',
                       style: TextStyle(color: Colors.white70)),
                   const SizedBox(height: 6),
-                  DropdownButtonFormField<int>(
-                    value: _selected,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                        border: OutlineInputBorder()),
-                    items: [
-                      for (var i = 0; i < _servers.length; i++)
-                        DropdownMenuItem(
-                          value: i,
-                          child: Text(_servers[i].name,
-                              overflow: TextOverflow.ellipsis),
-                        ),
-                    ],
-                    onChanged: (_vpn.state == VpnState.connected ||
-                            connecting)
-                        ? null
-                        : (v) async {
-                            setState(() => _selected = v ?? 0);
-                            final p = await SharedPreferences.getInstance();
-                            await p.setInt('selected', _selected);
-                          },
-                  ),
-                  const SizedBox(height: 24),
-                ],
-                const Text('Ссылка подписки',
-                    style: TextStyle(color: Colors.white70)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: _linkCtrl,
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    border: const OutlineInputBorder(),
-                    hintText: 'https://...',
-                    suffixIcon: IconButton(
-                      tooltip: 'Вставить',
-                      icon: const Icon(Icons.content_paste),
-                      onPressed: _paste,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: _loading ? null : _loadSubscription,
-                  icon: _loading
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.cloud_download),
-                  label: Text(_servers.isEmpty
-                      ? 'Добавить подписку'
-                      : 'Обновить подписку'),
-                ),
-                if (_message != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Text(_message!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white70)),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
